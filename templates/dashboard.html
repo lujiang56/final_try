@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 — 期末突击{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>复习总览</h1>
+        <small class="text-muted">按考试时间排序，上方优先攻克</small>
+    </div>
+    <a href="/" class="btn btn-dark">添加科目</a>
+</div>
+
+{% if not exams %}
+<div class="text-center py-5">
+    <p class="text-muted mb-3">还没有添加科目</p>
+    <a href="/" class="btn btn-dark">添加第一个科目</a>
+</div>
+{% else %}
+
+<div class="row">
+    {% for exam in exams %}
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100
+            {% if exam.days_left is number and exam.days_left <= 2 %}border-danger
+            {% elif exam.days_left is number and exam.days_left <= 5 %}border-warning
+            {% endif %}">
+
+            <div class="card-header d-flex justify-content-between align-items-center
+                {% if exam.risk_level == 'high' %}bg-danger-subtle
+                {% elif exam.risk_level == 'medium' %}bg-warning-subtle
+                {% endif %}">
+                <div>
+                    <h5 class="mb-0">{{ exam.name }}</h5>
+                    <small class="text-muted">{{ exam.exam_type }} · {{ exam.exam_date or '日期未定' }}</small>
+                </div>
+                <div class="text-end">
+                    {% if exam.days_left is number %}
+                        <span class="badge
+                            {% if exam.days_left <= 2 %}bg-danger
+                            {% elif exam.days_left <= 5 %}bg-warning text-dark
+                            {% else %}bg-secondary{% endif %}">
+                            倒计时 {{ exam.days_left }} 天
+                        </span>
+                    {% endif %}
+                    <br><small class="text-muted">
+                        {% if exam.risk_level == 'high' %}高风险
+                        {% elif exam.risk_level == 'medium' %}中等
+                        {% else %}低风险{% endif %}
+                    </small>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-1">
+                    <small>进度</small>
+                    <small>{{ exam.progress }}%</small>
+                </div>
+                <div class="progress mb-3">
+                    <div class="progress-bar bg-dark" role="progressbar"
+                         style="width: {{ exam.progress }}%"></div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <div class="fw-bold text-danger">{{ exam.kp_must }}</div>
+                            <small class="text-muted">必拿</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <div class="fw-bold text-warning">{{ exam.kp_try }}</div>
+                            <small class="text-muted">争取</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <div class="fw-bold text-secondary">{{ exam.kp_skip }}</div>
+                            <small class="text-muted">可弃</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="small text-muted mb-3">
+                    目标 {{ exam.target_score }} 分 |
+                    {% if exam.current_score %}平时 {{ exam.current_score }} 分 |{% endif %}
+                    每日 {{ exam.daily_hours }}h |
+                    学分 {{ exam.credit_weight }}
+                    {% if exam.notes %}<br>{{ exam.notes }}{% endif %}
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="/exam/{{ exam.id }}" class="btn btn-outline-secondary btn-sm flex-fill">考点管理</a>
+                    <a href="/exam/{{ exam.id }}/materials" class="btn btn-outline-secondary btn-sm flex-fill">真题分析</a>
+                    <a href="/exam/{{ exam.id }}/plan" class="btn btn-dark btn-sm flex-fill">突击计划</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

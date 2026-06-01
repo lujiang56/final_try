@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.name }} — 突击计划{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/dashboard" class="text-muted small text-decoration-none">&larr; 返回仪表盘</a>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <h2>{{ exam.name }} <small class="text-muted fs-6">突击计划</small></h2>
+        <form action="/exam/{{ exam.id }}/plan/regenerate" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">重新生成</button>
+        </form>
+    </div>
+</div>
+
+<!-- 总进度 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h3 class="mb-0">{{ progress }}% <small class="text-muted fs-6">完成</small></h3>
+                <small class="text-muted">{{ done }}/{{ total }} 个任务已完成</small>
+            </div>
+            <div class="col-md-5">
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-dark" role="progressbar"
+                         style="width: {{ progress }}%"></div>
+                </div>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">预估总耗时：{{ total_hours }}h {{ remaining_min }}min</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 三阶段 -->
+{% set phase_labels = {
+    1: 'Phase 1 — 真题套路解析（必拿考点）',
+    2: 'Phase 2 — 中等强度练习（争取考点）',
+    3: 'Phase 3 — 考前冲刺 + 错题回顾'
+} %}
+
+<div class="row g-4">
+    {% for phase_num in [1, 2, 3] %}
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center
+                {% if phase_num == 1 %}bg-danger-subtle
+                {% elif phase_num == 2 %}bg-warning-subtle
+                {% else %}bg-info-subtle{% endif %}">
+                {{ phase_labels[phase_num] }}
+                {% set phase_done = phase_tasks[phase_num]|selectattr('is_done', 'equalto', 1)|list|length %}
+                {% set phase_total = phase_tasks[phase_num]|length %}
+                {% if phase_total > 0 %}
+                <span class="badge bg-light text-dark">{{ phase_done }}/{{ phase_total }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if not phase_tasks[phase_num] %}
+                <p class="text-muted small">暂无任务。先完成考点分析后重新生成计划。</p>
+                {% else %}
+                {% for task in phase_tasks[phase_num] %}
+                <div class="form-check mb-2 p-2 rounded
+                    {% if task.is_done %}bg-light{% endif %}">
+                    <input class="form-check-input task-toggle"
+                           type="checkbox"
+                           data-task-id="{{ task.id }}"
+                           data-exam-id="{{ exam.id }}"
+                           {% if task.is_done %}checked{% endif %}>
+                    <label class="form-check-label small {% if task.is_done %}text-decoration-line-through text-muted{% endif %}"
+                           style="cursor:pointer"
+                           onclick="this.previousElementSibling.click()">
+                        {{ task.task }}
+                        <br><small class="text-muted">{{ task.estimated_minutes }} 分钟</small>
+                    </label>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if phase_tasks[0] %}
+<div class="mt-4">
+    {% for task in phase_tasks[0] %}
+    <div class="alert alert-light border small mb-0">
+        {{ task.task }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- 考前检查清单 -->
+<div class="card mt-4">
+    <div class="card-header">考前 24 小时检查清单</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-6">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c1">
+                    <label class="form-check-label" for="c1">翻一遍所有真题错题</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c2">
+                    <label class="form-check-label" for="c2">默写核心公式和关键词</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c3">
+                    <label class="form-check-label" for="c3">限时做一套模拟卷</label>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c4">
+                    <label class="form-check-label" for="c4">确认考试时间地点</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c5">
+                    <label class="form-check-label" for="c5">准备文具、证件</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="c6">
+                    <label class="form-check-label" for="c6">不熬夜超过凌晨2点</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

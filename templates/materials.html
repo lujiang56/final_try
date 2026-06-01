@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.name }} — 真题分析{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/dashboard" class="text-muted small text-decoration-none">&larr; 返回仪表盘</a>
+    <h2 class="mt-1">{{ exam.name }} <small class="text-muted fs-6">真题 / 资料分析</small></h2>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">粘贴真题题目文本</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">把一套真题的题目内容粘贴到下面，系统会自动识别章节和考点</label>
+                        <textarea name="raw_text" class="form-control font-monospace" rows="14"
+                                  placeholder="示例格式：
+1. 求极限 lim(x→0) sin(3x)/x （10分）
+2. 设函数 f(x)=x²-2x+1，求极值点和极值 （10分）
+3. 计算定积分 ∫₀¹ x·eˣ dx （15分）
+...
+
+把自己的真题粘贴过来即可" required></textarea>
+                    </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label small text-muted">试卷总分</label>
+                            <input type="number" name="total_score" class="form-control form-control-sm"
+                                   value="100" style="width:80px" min="1">
+                        </div>
+                        <div class="col">
+                            <button type="submit" class="btn btn-dark">开始分析</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if result %}
+        <div class="card mt-4">
+            <div class="card-header">分析结果</div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>章节</th>
+                            <th>出现频率</th>
+                            <th>预估分值</th>
+                            <th>突击价值</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for chapter, stats in result.items() %}
+                        <tr>
+                            <td>{{ chapter }}</td>
+                            <td><span class="badge bg-light text-dark">{{ stats.freq }} 次</span></td>
+                            <td>{{ stats.score }} 分</td>
+                            <td>
+                                {% set raid = '必拿' if stats.freq >= 2 and stats.score > 15
+                                    else ('争取' if stats.freq >= 1 and stats.score > 5 else '可弃') %}
+                                <span class="badge
+                                    {% if raid == '必拿' %}bg-danger
+                                    {% elif raid == '争取' %}bg-warning text-dark
+                                    {% else %}bg-light text-dark{% endif %}">
+                                    {{ raid }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="alert alert-light border small mb-0">
+                    考点已自动同步到考点管理页面，可手动调整后再生成突击计划。
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header">当前考点总览</div>
+            <div class="card-body">
+                {% set kp_must = kps|selectattr('raid_value', 'equalto', '必拿')|list %}
+                {% set kp_try = kps|selectattr('raid_value', 'equalto', '争取')|list %}
+                {% set kp_skip = kps|selectattr('raid_value', 'equalto', '可弃')|list %}
+
+                <div class="d-flex gap-2 text-center mb-3">
+                    <div class="flex-fill border rounded p-2">
+                        <div class="fs-4 fw-bold text-danger">{{ kp_must|length }}</div>
+                        <small class="text-muted">必拿</small>
+                    </div>
+                    <div class="flex-fill border rounded p-2">
+                        <div class="fs-4 fw-bold text-warning">{{ kp_try|length }}</div>
+                        <small class="text-muted">争取</small>
+                    </div>
+                    <div class="flex-fill border rounded p-2">
+                        <div class="fs-4 fw-bold text-secondary">{{ kp_skip|length }}</div>
+                        <small class="text-muted">可弃</small>
+                    </div>
+                </div>
+
+                {% if kp_must %}
+                <div class="mb-2">
+                    <small class="fw-bold text-danger">必拿考点：</small>
+                    {% for kp in kp_must %}
+                    <span class="badge bg-danger me-1 mb-1">{{ kp.topic }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if kp_try %}
+                <div class="mb-2">
+                    <small class="fw-bold text-warning">争取考点：</small>
+                    {% for kp in kp_try %}
+                    <span class="badge bg-warning text-dark me-1 mb-1">{{ kp.topic }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <a href="/exam/{{ exam.id }}/plan" class="btn btn-dark w-100 mt-2">生成突击计划 &rarr;</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">真题驱动突击法</div>
+            <div class="card-body small">
+                <ol class="mb-0 ps-3">
+                    <li class="mb-2"><strong>不要从第一章开始啃书</strong>，先看真题考什么再针对性复习</li>
+                    <li class="mb-2"><strong>高频考点先拿下</strong> — 出现2次以上且分值>15% = 必拿</li>
+                    <li class="mb-2"><strong>战略性放弃</strong> — 只出现过1次且分值<5%的果断跳过</li>
+                    <li class="mb-2"><strong>题型决定打法</strong> — 选择题刷题海，计算题总结SOP</li>
+                    <li><strong>真题多于3套时</strong>，对比找交集 = 送分题</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

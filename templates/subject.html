@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.name }} — 考点管理{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="/dashboard" class="text-muted small text-decoration-none">&larr; 返回仪表盘</a>
+        <h2 class="mt-1">{{ exam.name }} <small class="text-muted fs-6">{{ exam.exam_date }} · {{ exam.exam_type }}</small></h2>
+    </div>
+    <div class="btn-group">
+        <a href="/exam/{{ exam.id }}/materials" class="btn btn-outline-secondary btn-sm">真题分析</a>
+        <a href="/exam/{{ exam.id }}/plan" class="btn btn-dark btn-sm">突击计划</a>
+        <form action="/exam/{{ exam.id }}/delete" method="POST" class="d-inline"
+              onsubmit="return confirm('确定删除【{{ exam.name }}】吗？')">
+            <button class="btn btn-outline-danger btn-sm">删除</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <!-- 题型分值 -->
+        <div class="card mb-4">
+            <div class="card-header">题型分值分布 <small class="text-muted fw-normal">(总分: {{ total_score }})</small></div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-2">
+                        {% for sec in sections %}
+                        <div class="col-sm-6 col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text" style="min-width:65px">{{ sec.section_label }}</span>
+                                <input type="hidden" name="section_id" value="{{ sec.id }}">
+                                <input type="number" name="section_score" class="form-control"
+                                       value="{{ sec.score }}" placeholder="分值" min="0" step="0.5">
+                                <input type="number" name="section_count" class="form-control"
+                                       value="{{ sec.count }}" placeholder="题量" min="0">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn btn-outline-secondary btn-sm mt-3">保存题型</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 考点列表 -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                考点清单
+                <span class="badge bg-secondary">{{ kps|length }} 个</span>
+            </div>
+            <div class="card-body p-0">
+                {% if not kps %}
+                <div class="text-center py-4 text-muted">
+                    <p class="mb-2">还没有考点</p>
+                    <small>在「真题分析」页面粘贴真题自动拆解，或手动添加</small>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>章节</th>
+                                <th>知识点</th>
+                                <th>频次</th>
+                                <th>分值</th>
+                                <th>突击价值</th>
+                                <th>掌握</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for kp in kps %}
+                            <tr class="{% if kp.is_mastered %}table-active{% endif %}">
+                                <td><small class="text-muted">{{ kp.chapter }}</small></td>
+                                <td>{{ kp.topic }}</td>
+                                <td><span class="badge bg-light text-dark">{{ kp.frequency }}次</span></td>
+                                <td>{{ kp.score_impact }}分</td>
+                                <td>
+                                    <span class="badge
+                                        {% if kp.raid_value == '必拿' %}bg-danger
+                                        {% elif kp.raid_value == '争取' %}bg-warning text-dark
+                                        {% else %}bg-light text-dark{% endif %}">
+                                        {{ kp.raid_value }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <form action="/exam/{{ exam.id }}/kp/{{ kp.id }}/toggle" method="POST">
+                                        <button type="submit" class="btn btn-sm
+                                            {% if kp.is_mastered %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                                            {% if kp.is_mastered %}已掌握{% else %}未掌握{% endif %}
+                                        </button>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form action="/exam/{{ exam.id }}/kp/{{ kp.id }}/delete" method="POST"
+                                          onsubmit="return confirm('删除考点: {{ kp.topic }}?')">
+                                        <button class="btn btn-sm btn-outline-danger">删除</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 手动添加考点 -->
+        <div class="card mt-4">
+            <div class="card-header">手动添加考点</div>
+            <div class="card-body">
+                <form action="/exam/{{ exam.id }}/add_kp" method="POST" class="row g-2">
+                    <div class="col-md-3">
+                        <input type="text" name="chapter" class="form-control form-control-sm"
+                               placeholder="章节" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="topic" class="form-control form-control-sm"
+                               placeholder="知识点名称" required>
+                    </div>
+                    <div class="col-md-1">
+                        <input type="number" name="frequency" class="form-control form-control-sm"
+                               placeholder="频次" value="1" min="0">
+                    </div>
+                    <div class="col-md-1">
+                        <input type="number" name="score_impact" class="form-control form-control-sm"
+                               placeholder="分值" value="5" min="0" step="0.5">
+                    </div>
+                    <div class="col-md-2">
+                        <select name="raid_value" class="form-select form-select-sm">
+                            <option value="争取">争取</option>
+                            <option value="必拿">必拿</option>
+                            <option value="可弃">可弃</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-dark btn-sm w-100">添加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右栏：错题本 -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                错题本
+                <span class="badge bg-secondary">{{ mistakes|length }} 条</span>
+            </div>
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                <form action="/exam/{{ exam.id }}/mistake" method="POST" class="bg-light p-3 rounded mb-3 border">
+                    <div class="mb-2">
+                        <textarea name="question" class="form-control form-control-sm" rows="2"
+                                  placeholder="题目内容..." required></textarea>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <input type="text" name="wrong_answer" class="form-control form-control-sm"
+                                   placeholder="你的错误答案">
+                        </div>
+                        <div class="col-6">
+                            <input type="text" name="correct_answer" class="form-control form-control-sm"
+                                   placeholder="正确答案">
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <select name="reason" class="form-select form-select-sm">
+                                <option value="">错误原因...</option>
+                                <option value="概念不清">概念不清</option>
+                                <option value="计算失误">计算失误</option>
+                                <option value="审题不清">审题不清</option>
+                                <option value="记忆不足">记忆不足</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <input type="text" name="knowledge_tag" class="form-control form-control-sm"
+                                   placeholder="知识点标签">
+                        </div>
+                        <div class="col-2">
+                            <button type="submit" class="btn btn-dark btn-sm w-100">+</button>
+                        </div>
+                    </div>
+                </form>
+
+                {% for m in mistakes %}
+                <div class="border rounded p-2 mb-2 {% if m.reviewed %}bg-light{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <small>{{ m.question[:80] }}{% if m.question|length > 80 %}...{% endif %}</small>
+                            <div class="small text-muted mt-1">
+                                {% if m.wrong_answer %}
+                                <span class="text-danger">{{ m.wrong_answer }}</span> &rarr;
+                                {% endif %}
+                                {% if m.correct_answer %}
+                                <span class="text-success">{{ m.correct_answer }}</span>
+                                {% endif %}
+                                {% if m.reason %}
+                                <span class="badge bg-secondary ms-1">{{ m.reason }}</span>
+                                {% endif %}
+                                {% if m.knowledge_tag %}
+                                <span class="badge bg-info ms-1">{{ m.knowledge_tag }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-2">
+                            <form action="/exam/{{ exam.id }}/mistake/{{ m.id }}/toggle" method="POST">
+                                <button class="btn btn-sm {% if m.reviewed %}btn-success{% else %}btn-outline-success{% endif %}"
+                                        title="标记已复习">已复习</button>
+                            </form>
+                            <form action="/exam/{{ exam.id }}/mistake/{{ m.id }}/delete" method="POST">
+                                <button class="btn btn-sm btn-outline-danger" title="删除">删除</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-3">
+                    <small>还没有错题记录</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
