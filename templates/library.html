@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}个人资料库 — 期末突击{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>个人资料库</h1>
+        <small class="text-muted">所有生成的复习资料，可在线查看或下载</small>
+    </div>
+    <a href="/dashboard" class="btn btn-outline-secondary btn-sm">&larr; 返回仪表盘</a>
+</div>
+
+{% if not materials %}
+<div class="text-center py-5">
+    <i class="bi bi-files text-muted" style="font-size:4rem;"></i>
+    <p class="text-muted mt-3 mb-2">还没有生成任何复习资料</p>
+    <small class="text-muted">先去「真题分析」页面粘贴真题或上传PPT，然后点击「生成复习资料」</small>
+</div>
+{% else %}
+
+<div class="row g-4">
+    <!-- 左侧筛选栏 -->
+    <div class="col-lg-3">
+        <div class="card library-filter">
+            <div class="card-header">分类筛选</div>
+            <div class="list-group list-group-flush">
+                <a href="?filter=all" class="list-group-item list-group-item-action
+                    {% if not request.args.get('filter') or request.args.get('filter') == 'all' %}active{% endif %}">
+                    全部资料
+                    <span class="badge bg-secondary float-end">{{ materials|length }}</span>
+                </a>
+                <a href="?filter=summary" class="list-group-item list-group-item-action
+                    {% if request.args.get('filter') == 'summary' %}active{% endif %}">
+                    复习总结
+                    <span class="badge bg-secondary float-end">{{ type_counts.get('summary', 0) }}</span>
+                </a>
+                <a href="?filter=cheatsheet" class="list-group-item list-group-item-action
+                    {% if request.args.get('filter') == 'cheatsheet' %}active{% endif %}">
+                    考前速查表
+                    <span class="badge bg-secondary float-end">{{ type_counts.get('cheatsheet', 0) }}</span>
+                </a>
+                <a href="?filter=flashcards" class="list-group-item list-group-item-action
+                    {% if request.args.get('filter') == 'flashcards' %}active{% endif %}">
+                    错题闪卡
+                    <span class="badge bg-secondary float-end">{{ type_counts.get('flashcards', 0) }}</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="card library-filter mt-3">
+            <div class="card-header">按科目</div>
+            <div class="list-group list-group-flush">
+                {% for ename, mats in exams_materials.items() %}
+                <a href="?exam={{ ename|urlencode }}" class="list-group-item list-group-item-action
+                    {% if request.args.get('exam') == ename %}active{% endif %}">
+                    {{ ename }}
+                    <span class="badge bg-secondary float-end">{{ mats|length }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧资料列表 -->
+    <div class="col-lg-9">
+        {% set filter_type = request.args.get('filter', 'all') %}
+        {% set filter_exam = request.args.get('exam', '') %}
+
+        {% for material in materials %}
+            {% if (filter_type == 'all' or material.material_type == filter_type) and
+                  (not filter_exam or material.exam_name == filter_exam) %}
+            <div class="card material-card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="fw-bold">{{ material.title }}</span>
+                        <span class="badge ms-2
+                            {% if material.material_type == 'summary' %}bg-info
+                            {% elif material.material_type == 'cheatsheet' %}bg-warning text-dark
+                            {% else %}bg-success{% endif %}">
+                            {% if material.material_type == 'summary' %}复习总结
+                            {% elif material.material_type == 'cheatsheet' %}考前速查表
+                            {% else %}错题闪卡{% endif %}
+                        </span>
+                    </div>
+                    <small class="text-muted">{{ material.created_at[:10] if material.created_at else '' }}</small>
+                </div>
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                科目: {{ material.exam_name }}
+                                {% if material.is_from_ppt %}
+                                · <span class="badge bg-light text-dark">来源于PPT</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <a href="/materials/{{ material.id }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-eye me-1"></i>查看
+                            </a>
+                            <a href="/materials/{{ material.id }}/download" class="btn btn-dark" download>
+                                <i class="bi bi-download me-1"></i>下载
+                            </a>
+                            <form action="/materials/{{ material.id }}/delete" method="POST" class="d-inline"
+                                  onsubmit="return confirm('确定删除【{{ material.title }}】吗？')">
+                                <button class="btn btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

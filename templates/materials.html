@@ -7,8 +7,72 @@
     <h2 class="mt-1">{{ exam.name }} <small class="text-muted fs-6">真题 / 资料分析</small></h2>
 </div>
 
+<!-- PPT 上传/分析反馈 -->
+{% if upload_error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle me-1"></i> {{ upload_error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if upload_success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-1"></i> 课件分析完成：共 {{ upload_success }} 页幻灯片，已自动提取考点。
+    {% if analysis_method == 'llm' %}
+    <span class="badge bg-primary ms-1"><i class="bi bi-stars"></i> LLM 语义分析</span>
+    {% else %}
+    <span class="badge bg-secondary ms-1">规则引擎</span>
+    {% endif %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if analysis_summary %}
+<div class="alert alert-light border mb-3">
+    <strong><i class="bi bi-robot me-1"></i>AI 分析总结：</strong>
+    <span class="text-muted">{{ analysis_summary }}</span>
+</div>
+{% endif %}
+{% if result and not upload_success and not upload_error %}
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-1"></i> 文本分析完成，考点已自动同步到下方总览。
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="row g-4">
     <div class="col-lg-7">
+        <!-- PPT 上传区域 -->
+        <div class="card mb-4">
+            <div class="card-header">上传 PPT / 课件</div>
+            <div class="card-body">
+                <form action="/exam/{{ exam.id }}/materials/upload" method="POST"
+                      enctype="multipart/form-data" id="ppt-upload-form">
+                    <div class="upload-zone" id="upload-zone">
+                        <i class="bi bi-file-ppt fs-1 text-muted"></i>
+                        <p class="mb-1 mt-2">拖拽 PPT 文件到此处，或点击选择</p>
+                        <small class="text-muted">支持 .pptx 格式，最大 16MB</small>
+                    </div>
+                    <input type="file" name="ppt_file" id="ppt-file-input"
+                           accept=".pptx,.ppt" class="d-none">
+                    <div class="row g-2 align-items-end mt-3">
+                        <div class="col-auto">
+                            <label class="form-label small text-muted">试卷总分</label>
+                            <input type="number" name="total_score" class="form-control form-control-sm"
+                                   value="100" style="width:80px" min="1">
+                        </div>
+                        <div class="col" id="file-info" style="display:none;">
+                            <span id="file-name" class="small fw-bold"></span>
+                            <span id="file-size" class="small text-muted ms-2"></span>
+                        </div>
+                    </div>
+                    <button type="submit" id="upload-btn"
+                            class="btn btn-dark mt-2" style="display:none;">
+                        <i class="bi bi-cloud-upload me-1"></i>上传并分析
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 粘贴真题文本 -->
         <div class="card">
             <div class="card-header">粘贴真题题目文本</div>
             <div class="card-body">
@@ -54,10 +118,10 @@
                     <tbody>
                         {% for chapter, stats in result.items() %}
                         <tr>
-                            <td>{{ chapter }}</td>
-                            <td><span class="badge bg-light text-dark">{{ stats.freq }} 次</span></td>
-                            <td>{{ stats.score }} 分</td>
-                            <td>
+                            <td data-label="章节">{{ chapter }}</td>
+                            <td data-label="出现频率"><span class="badge bg-light text-dark">{{ stats.freq }} 次</span></td>
+                            <td data-label="预估分值">{{ stats.score }} 分</td>
+                            <td data-label="突击价值">
                                 {% set raid = '必拿' if stats.freq >= 2 and stats.score > 15
                                     else ('争取' if stats.freq >= 1 and stats.score > 5 else '可弃') %}
                                 <span class="badge
@@ -72,9 +136,26 @@
                     </tbody>
                 </table>
 
-                <div class="alert alert-light border small mb-0">
-                    考点已自动同步到考点管理页面，可手动调整后再生成突击计划。
+                <div class="alert alert-light border small mb-0 d-flex justify-content-between align-items-center">
+                    <span>考点已自动同步到考点管理页面，可手动调整后再生成突击计划。</span>
+                    <div>
+                        <select name="material_type" form="gen-form" class="form-select form-select-sm d-inline-block w-auto me-1" style="width:auto;">
+                            <option value="summary">复习总结</option>
+                            <option value="cheatsheet">考前速查表</option>
+                            <option value="flashcards">错题闪卡</option>
+                        </select>
+                        <form action="/exam/{{ exam.id }}/materials/generate" method="POST" class="d-inline" id="gen-form">
+                            <button type="submit" class="btn btn-dark btn-sm">生成复习资料</button>
+                        </form>
+                    </div>
                 </div>
+                {% if analysis_method == 'llm' %}
+                <div class="alert alert-primary border small mt-2 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    LLM 已自动生成复习总结和考前速查表，请前往
+                    <a href="/library" class="alert-link">资料库</a> 查看。
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endif %}

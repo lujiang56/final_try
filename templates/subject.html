@@ -72,11 +72,11 @@
                         <tbody>
                             {% for kp in kps %}
                             <tr class="{% if kp.is_mastered %}table-active{% endif %}">
-                                <td><small class="text-muted">{{ kp.chapter }}</small></td>
-                                <td>{{ kp.topic }}</td>
-                                <td><span class="badge bg-light text-dark">{{ kp.frequency }}次</span></td>
-                                <td>{{ kp.score_impact }}分</td>
-                                <td>
+                                <td data-label="章节"><small class="text-muted">{{ kp.chapter }}</small></td>
+                                <td data-label="知识点">{{ kp.topic }}</td>
+                                <td data-label="频次"><span class="badge bg-light text-dark">{{ kp.frequency }}次</span></td>
+                                <td data-label="分值">{{ kp.score_impact }}分</td>
+                                <td data-label="突击价值">
                                     <span class="badge
                                         {% if kp.raid_value == '必拿' %}bg-danger
                                         {% elif kp.raid_value == '争取' %}bg-warning text-dark
@@ -84,7 +84,7 @@
                                         {{ kp.raid_value }}
                                     </span>
                                 </td>
-                                <td>
+                                <td data-label="掌握">
                                     <form action="/exam/{{ exam.id }}/kp/{{ kp.id }}/toggle" method="POST">
                                         <button type="submit" class="btn btn-sm
                                             {% if kp.is_mastered %}btn-success{% else %}btn-outline-secondary{% endif %}">
@@ -92,7 +92,7 @@
                                         </button>
                                     </form>
                                 </td>
-                                <td>
+                                <td data-label="操作">
                                     <form action="/exam/{{ exam.id }}/kp/{{ kp.id }}/delete" method="POST"
                                           onsubmit="return confirm('删除考点: {{ kp.topic }}?')">
                                         <button class="btn btn-sm btn-outline-danger">删除</button>

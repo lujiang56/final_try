@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPT 课件对话 — 期末突击</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg border-bottom">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">期末突击</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/dashboard">战况</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/library">资料库</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/ppt-analysis">PPT 分析</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/debug">Debug</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/settings">设置</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-4 mb-5">
+
+<div class="mb-3">
+    <a href="/dashboard" class="text-muted small text-decoration-none">&larr; 返回仪表盘</a>
+    <h2 class="mt-1"><i class="bi bi-file-earmark-slides me-2"></i>PPT 课件对话</h2>
+</div>
+
+{% if not llm_configured %}
+<div class="alert alert-warning d-flex align-items-center" role="alert">
+    <i class="bi bi-exclamation-triangle me-2 fs-5"></i>
+    <div>
+        <strong>LLM API 尚未配置</strong><br>
+        <span class="small">请先前往 <a href="/settings" class="alert-link">设置页面</a> 配置 API Key。</span>
+    </div>
+</div>
+{% endif %}
+
+<div id="status-bar" class="alert alert-light border mb-3 py-2 px-3 small" style="font-family:monospace;font-size:12px;display:none;">
+    <span id="status-text"></span>
+</div>
+
+{# ── 2 步指示器 ── #}
+<div class="stage-indicator" id="stage-indicator">
+    <div class="stage-step active" data-stage="upload">
+        <div class="step-num">1</div>
+        <div class="step-info">
+            <span class="step-title">上传课件</span>
+            <span class="step-desc">选择 PPTX 文件</span>
+        </div>
+    </div>
+    <span class="stage-arrow">▸</span>
+    <div class="stage-step" data-stage="chat">
+        <div class="step-num">2</div>
+        <div class="step-info">
+            <span class="step-title">AI 对话</span>
+            <span class="step-desc">辅导答疑</span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    {# ── 左侧：上传 / 文件状态 / 资料生成 ── #}
+    <div class="col-lg-4 order-lg-1">
+        <div id="file-status-card" class="card mb-3" style="display:none;">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-file-ppt text-danger fs-5"></i>
+                        <div>
+                            <div class="fw-bold small" id="status-filename">-</div>
+                            <div class="text-muted" style="font-size:11px;">
+                                <span id="status-slides">-</span>
+                                <span id="status-badge" class="badge bg-success ms-1">已就绪</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAll()" title="更换文件">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="upload-section" class="card mb-3">
+            <div class="card-header">上传 PPT 课件</div>
+            <div class="card-body">
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="upload-zone" id="upload-zone">
+                        <i class="bi bi-file-ppt fs-1 text-muted"></i>
+                        <p class="mb-1 mt-2">拖拽 .pptx 文件到此处，或点击选择</p>
+                        <small class="text-muted">支持 .pptx 格式，最大 16MB</small>
+                    </div>
+                    <input type="file" name="ppt_file" id="ppt-file-input"
+                           accept=".pptx,.ppt" class="d-none">
+
+                    <div id="upload-progress-bar" style="display:none;" class="mt-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span id="progress-label">上传中...</span>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="progress-fill" style="width:0%;"></div>
+                        </div>
+                        <div class="text-muted mt-1" style="font-size:11px;">
+                            <span id="progress-detail">准备上传</span>
+                        </div>
+                    </div>
+
+                    <div id="file-info" style="display:none;" class="mb-2 p-2 bg-light rounded small mt-3">
+                        <span id="file-name" class="fw-bold"></span>
+                        <span id="file-size" class="text-muted ms-2"></span>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" id="upload-btn" class="btn btn-dark flex-grow-1"
+                                style="display:none;">
+                            <i class="bi bi-cloud-upload me-1"></i>上传并开始对话
+                        </button>
+                        <button type="button" id="cancel-upload-btn" class="btn btn-outline-danger"
+                                style="display:none;">
+                            <i class="bi bi-x-lg"></i> 取消
+                        </button>
+                    </div>
+                </form>
+                {# 内联保存 form 引用，防御浏览器 DOM 解析异常 #}
+                <script>window.__UPLOAD_FORM_REF = document.getElementById('upload-form');</script>
+            </div>
+        </div>
+
+        <div id="material-section" class="card" style="display:none;">
+            <div class="card-header">生成复习资料</div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-dark btn-sm" onclick="generateMaterial('summary')" id="btn-summary">
+                        <i class="bi bi-journal-text me-1"></i>生成复习总结
+                    </button>
+                    <button class="btn btn-outline-dark btn-sm" onclick="generateMaterial('cheatsheet')" id="btn-cheatsheet">
+                        <i class="bi bi-table me-1"></i>生成考前速查表
+                    </button>
+                    <button class="btn btn-outline-dark btn-sm" onclick="generateMaterial('focus_guide')" id="btn-focus-guide">
+                        <i class="bi bi-bullseye me-1"></i>生成重点突破指南
+                    </button>
+                </div>
+                <div id="material-result" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    {# ── 右侧：聊天面板 ── #}
+    <div class="col-lg-8 order-lg-2">
+        <div class="card chat-panel-wrapper">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-chat-dots me-1"></i>AI 课件对话</span>
+                <span id="chat-status"><small class="text-muted">请先上传课件</small></span>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <div class="text-center py-5 text-muted" id="chat-empty">
+                    <i class="bi bi-cloud-upload fs-1 d-block mb-2"></i>
+                    <p class="mb-1">上传 PPT 课件后即可开始对话</p>
+                    <p class="small">AI 将基于课件内容回答你的问题</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chat-input" class="form-control" rows="1"
+                          placeholder="输入你的问题，Enter 发送，Shift+Enter 换行..."
+                          disabled></textarea>
+                <button id="chat-send-btn" class="btn btn-dark" disabled>
+                    <i class="bi bi-send"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+const INITIAL = {
+    sessionKey: {{ ('"' + session.session_key + '"')|safe if session and session.session_key else 'null' }},
+    examId: {{ session.exam_id if session and session.exam_id else 'null' }},
+    ready: {{ 'true' if session and session.status == 'ready' else 'false' }},
+    llmConfigured: {{ 'true' if llm_configured else 'false' }},
+    slideCount: {{ session.slide_count if session and session.slide_count else 0 }},
+    filename: {{ ('"' + session.ppt_filename + '"')|safe if session and session.ppt_filename else 'null' }},
+};
+
+let sessionKey = INITIAL.sessionKey;
+let isStreaming = false;
+let uploadXHR = null;
+
+const $ = function(s) { return document.querySelector(s); };
+
+function status(msg) {
+    var bar = document.getElementById('status-bar');
+    var el = document.getElementById('status-text');
+    if (bar && el) { bar.style.display = ''; el.textContent = msg; }
+}
+
+const dom = {
+    stageIndicator: $('#stage-indicator'),
+    uploadSection: $('#upload-section'),
+    uploadZone: $('#upload-zone'),
+    fileInput: $('#ppt-file-input'),
+    fileInfo: $('#file-info'),
+    fileName: $('#file-name'),
+    fileSize: $('#file-size'),
+    uploadBtn: $('#upload-btn'),
+    cancelUploadBtn: $('#cancel-upload-btn'),
+    uploadProgressBar: $('#upload-progress-bar'),
+    progressFill: $('#progress-fill'),
+    progressPercent: $('#progress-percent'),
+    progressLabel: $('#progress-label'),
+    progressDetail: $('#progress-detail'),
+    fileStatusCard: $('#file-status-card'),
+    statusFilename: $('#status-filename'),
+    statusSlides: $('#status-slides'),
+    statusBadge: $('#status-badge'),
+    materialSection: $('#material-section'),
+    materialResult: $('#material-result'),
+    chatMessages: $('#chat-messages'),
+    chatEmpty: $('#chat-empty'),
+    chatInput: $('#chat-input'),
+    chatSendBtn: $('#chat-send-btn'),
+    chatStatus: $('#chat-status'),
+};
+
+// 防御：如果 DOMContentLoaded 时 querySelector 找不到 form，用内联时保存的引用
+if (!dom.uploadForm && window.__UPLOAD_FORM_REF) {
+    dom.uploadForm = window.__UPLOAD_FORM_REF;
+}
+
+function setStage(stage) {
+    var steps = document.querySelectorAll('.stage-step');
+    var arrows = document.querySelectorAll('.stage-arrow');
+    var activeIdx = stage === 'chat' ? 1 : 0;
+    steps.forEach(function(step, i) {
+        step.classList.remove('active', 'done');
+        var numEl = step.querySelector('.step-num');
+        if (i < activeIdx) { step.classList.add('done'); numEl.textContent = '✓'; }
+        else if (i === activeIdx) { step.classList.add('active'); numEl.textContent = i + 1; }
+        else { numEl.textContent = i + 1; }
+    });
+    arrows.forEach(function(a, i) { a.classList.toggle('done', i < activeIdx); });
+
+    dom.uploadSection.style.display = (stage === 'upload') ? '' : 'none';
+    dom.fileStatusCard.style.display = (stage === 'chat' && sessionKey) ? '' : 'none';
+    dom.materialSection.style.display = (stage === 'chat' && sessionKey) ? '' : 'none';
+
+    var chatReady = (stage === 'chat');
+    dom.chatInput.disabled = !chatReady;
+    dom.chatSendBtn.disabled = !chatReady;
+    dom.chatStatus.innerHTML = chatReady
+        ? '<small class="text-success"><i class="bi bi-circle-fill small me-1"></i>在线 — 可以提问了</small>'
+        : '<small class="text-muted">请先上传课件</small>';
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+function escapeHtml(text) {
+    if (!text) return '';
+    var d = document.createElement('div');
+    d.textContent = String(text);
+    return d.innerHTML;
+}
+function showError(msg) {
+    status(msg);
+    var d = document.createElement('div');
+    d.className = 'alert alert-danger alert-dismissible fade show small m-2';
+    d.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + escapeHtml(msg) + '<button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>';
+    dom.chatMessages.appendChild(d);
+    scrollChat();
+}
+function addSystemMsg(msg) {
+    if (dom.chatEmpty) dom.chatEmpty.style.display = 'none';
+    var d = document.createElement('div');
+    d.className = 'text-center py-1';
+    d.innerHTML = '<small class="text-muted">' + msg + '</small>';
+    dom.chatMessages.appendChild(d);
+    scrollChat();
+}
+function scrollChat() {
+    setTimeout(function() { dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight; }, 50);
+}
+
+// ─── 文件选择 ───
+function updateFileDisplay(file) {
+    dom.fileName.textContent = file.name;
+    dom.fileSize.textContent = formatFileSize(file.size);
+    dom.fileInfo.style.display = '';
+    dom.uploadBtn.style.display = '';
+}
+
+dom.uploadZone.addEventListener('click', function() { dom.fileInput.click(); });
+dom.uploadZone.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
+dom.uploadZone.addEventListener('dragleave', function() { this.classList.remove('dragover'); });
+dom.uploadZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        dom.fileInput.files = e.dataTransfer.files;
+        updateFileDisplay(e.dataTransfer.files[0]);
+    }
+});
+dom.fileInput.addEventListener('change', function() {
+    if (this.files.length) updateFileDisplay(this.files[0]);
+});
+
+// ─── XHR 上传 ───
+dom.uploadForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (!dom.fileInput.files.length) return;
+
+    var file = dom.fileInput.files[0];
+    status('正在上传: ' + file.name);
+    var formData = new FormData();
+    formData.append('ppt_file', file);
+
+    dom.uploadProgressBar.style.display = '';
+    dom.progressFill.style.width = '0%';
+    dom.progressFill.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    dom.progressPercent.textContent = '0%';
+    dom.progressLabel.textContent = '上传中...';
+    dom.progressDetail.textContent = file.name;
+    dom.uploadBtn.disabled = true;
+    dom.uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>上传中...';
+    dom.cancelUploadBtn.style.display = '';
+
+    uploadXHR = new XMLHttpRequest();
+    uploadXHR.open('POST', '/api/ppt-analysis/create');
+
+    uploadXHR.upload.addEventListener('progress', function(evt) {
+        if (evt.lengthComputable) {
+            var pct = Math.round(evt.loaded / evt.total * 100);
+            dom.progressFill.style.width = pct + '%';
+            dom.progressPercent.textContent = pct + '%';
+            dom.progressDetail.textContent = formatFileSize(evt.loaded) + ' / ' + formatFileSize(evt.total);
+            status('上传中 ' + pct + '%');
+        }
+    });
+
+    uploadXHR.addEventListener('load', function() {
+        if (uploadXHR === null) return;
+        dom.cancelUploadBtn.style.display = 'none';
+        dom.uploadProgressBar.style.display = 'none';
+        uploadXHR = null;
+
+        try {
+            var data = JSON.parse(this.responseText);
+            if (data.ok) {
+                sessionKey = data.session_key;
+                dom.statusFilename.textContent = data.filename || file.name;
+                dom.statusSlides.textContent = data.slide_count + ' 页';
+                dom.statusBadge.textContent = '已就绪';
+                dom.statusBadge.className = 'badge bg-success ms-1';
+                window.history.pushState({}, '', '/ppt-analysis/' + sessionKey);
+                setStage('chat');
+                status('课件就绪，共 ' + data.slide_count + ' 页。开始提问吧！');
+                addSystemMsg('<i class="bi bi-check-circle me-1"></i>课件「' + escapeHtml(data.filename) + '」已就绪，共 ' + data.slide_count + ' 页。开始提问吧！');
+            } else {
+                showError(data.error || '上传失败');
+                resetUploadUI();
+            }
+        } catch (err) {
+            showError('解析响应失败: ' + err.message);
+            resetUploadUI();
+        }
+    });
+
+    uploadXHR.addEventListener('error', function() {
+        if (uploadXHR === null) return;
+        uploadXHR = null;
+        dom.cancelUploadBtn.style.display = 'none';
+        dom.uploadProgressBar.style.display = 'none';
+        showError('网络错误，上传失败');
+        resetUploadUI();
+    });
+
+    uploadXHR.addEventListener('abort', function() {
+        uploadXHR = null;
+        dom.cancelUploadBtn.style.display = 'none';
+        dom.uploadProgressBar.style.display = 'none';
+        status('上传已取消');
+        resetUploadUI();
+    });
+
+    uploadXHR.send(formData);
+});
+
+dom.cancelUploadBtn.addEventListener('click', function() {
+    if (uploadXHR) { uploadXHR.abort(); }
+});
+
+function resetUploadUI() {
+    dom.uploadBtn.disabled = false;
+    dom.uploadBtn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>上传并开始对话';
+    dom.cancelUploadBtn.style.display = 'none';
+    dom.uploadProgressBar.style.display = 'none';
+}
+
+function resetAll() {
+    sessionKey = null;
+    uploadXHR = null;
+    dom.fileStatusCard.style.display = 'none';
+    dom.materialSection.style.display = 'none';
+    dom.fileInfo.style.display = 'none';
+    dom.fileInput.value = '';
+    dom.chatMessages.innerHTML = '';
+    var empty = document.createElement('div');
+    empty.className = 'text-center py-5 text-muted';
+    empty.id = 'chat-empty';
+    empty.innerHTML = '<i class="bi bi-cloud-upload fs-1 d-block mb-2"></i><p class="mb-1">上传 PPT 课件后即可开始对话</p><p class="small">AI 将基于课件内容回答你的问题</p>';
+    dom.chatMessages.appendChild(empty);
+    dom.chatEmpty = empty;
+    dom.materialResult.innerHTML = '';
+    setStage('upload');
+    window.history.pushState({}, '', '/ppt-analysis');
+}
+
+// ─── 聊天 ───
+dom.chatSendBtn.addEventListener('click', sendMessage);
+dom.chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+dom.chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+async function sendMessage() {
+    if (isStreaming || !sessionKey) return;
+    var message = dom.chatInput.value.trim();
+    if (!message) return;
+
+    if (dom.chatEmpty) dom.chatEmpty.style.display = 'none';
+    appendBubble('user', message);
+    dom.chatInput.value = '';
+    dom.chatInput.style.height = 'auto';
+
+    var streamBubble = document.createElement('div');
+    streamBubble.className = 'message-bubble message-assistant message-streaming';
+    streamBubble.innerHTML = '<span class="stream-content"></span><span class="streaming-cursor"></span>';
+    dom.chatMessages.appendChild(streamBubble);
+    scrollChat();
+
+    isStreaming = true;
+    dom.chatSendBtn.disabled = true;
+    status('AI 正在回复...');
+
+    try {
+        var resp = await fetch('/api/ppt-analysis/' + sessionKey + '/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message }),
+        });
+        if (!resp.ok) {
+            var err = await resp.json().catch(function() { return {}; });
+            throw new Error(err.error || '请求失败 (' + resp.status + ')');
+        }
+
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        var buf = '', fullText = '';
+
+        while (true) {
+            var chunk = await reader.read();
+            if (chunk.done) break;
+            buf += decoder.decode(chunk.value, { stream: true });
+            var lines = buf.split('\n');
+            buf = lines.pop() || '';
+            for (var i = 0; i < lines.length; i++) {
+                if (!lines[i].startsWith('data: ')) continue;
+                try {
+                    var evt = JSON.parse(lines[i].slice(6));
+                    if (evt.type === 'token') {
+                        fullText += evt.text;
+                        streamBubble.querySelector('.stream-content').innerHTML = fullText;
+                        scrollChat();
+                    } else if (evt.type === 'done') {
+                        fullText = evt.full_text || fullText;
+                        streamBubble.querySelector('.stream-content').innerHTML = fullText;
+                        streamBubble.classList.remove('message-streaming');
+                        var c = streamBubble.querySelector('.streaming-cursor');
+                        if (c) c.remove();
+                        status('回复完成');
+                    } else if (evt.type === 'error') {
+                        streamBubble.querySelector('.stream-content').innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>' + escapeHtml(evt.message) + '</span>';
+                        streamBubble.classList.remove('message-streaming');
+                        var c2 = streamBubble.querySelector('.streaming-cursor');
+                        if (c2) c2.remove();
+                    }
+                } catch (_) {}
+            }
+        }
+    } catch (err2) {
+        streamBubble.querySelector('.stream-content').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + escapeHtml(err2.message) + '</span>';
+        streamBubble.classList.remove('message-streaming');
+        var c3 = streamBubble.querySelector('.streaming-cursor');
+        if (c3) c3.remove();
+    }
+    isStreaming = false;
+    dom.chatSendBtn.disabled = false;
+    dom.chatInput.focus();
+}
+
+function appendBubble(role, content) {
+    var d = document.createElement('div');
+    d.className = 'message-bubble message-' + (role === 'user' ? 'user' : 'assistant');
+    d.textContent = content;
+    dom.chatMessages.appendChild(d);
+    scrollChat();
+}
+
+// ─── 资料生成 ───
+async function generateMaterial(type) {
+    if (!sessionKey) return;
+    var btnMap = { summary: $('#btn-summary'), cheatsheet: $('#btn-cheatsheet'), focus_guide: $('#btn-focus-guide') };
+    var btn = btnMap[type];
+    if (!btn) return;
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>生成中...';
+
+    try {
+        var resp = await fetch('/api/ppt-analysis/' + sessionKey + '/generate-material', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ material_type: type }),
+        });
+        var data = await resp.json();
+        if (data.ok) {
+            dom.materialResult.innerHTML = '<div class="alert alert-success alert-dismissible fade show small mt-2 mb-0"><i class="bi bi-check-circle me-1"></i><a href="/materials/' + data.material_id + '" class="alert-link" target="_blank">' + escapeHtml(data.title) + '</a><button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button></div>';
+        } else {
+            dom.materialResult.innerHTML = '<div class="alert alert-danger alert-dismissible fade show small mt-2 mb-0">' + escapeHtml(data.error || '生成失败') + '<button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button></div>';
+        }
+    } catch (err3) {
+        dom.materialResult.innerHTML = '<div class="alert alert-danger small mt-2 mb-0">' + escapeHtml(err3.message) + '</div>';
+    }
+    btn.disabled = false;
+    btn.innerHTML = orig;
+}
+
+// ─── 初始化 ───
+if (INITIAL.sessionKey && INITIAL.ready) {
+    sessionKey = INITIAL.sessionKey;
+    dom.statusFilename.textContent = INITIAL.filename || '课件';
+    dom.statusSlides.textContent = INITIAL.slideCount + ' 页';
+    dom.statusBadge.textContent = '已就绪';
+    dom.statusBadge.className = 'badge bg-success ms-1';
+    setStage('chat');
+    {% if session and session.chat_history %}
+    {% for msg in session.chat_history %}
+    appendBubble('{{ msg.role }}', {{ msg.content|tojson|safe }});
+    {% endfor %}
+    {% endif %}
+    scrollChat();
+} else {
+    setStage('upload');
+}
+
+});
+</script>
+</div>{# close .container #}
+</body>
+</html>
